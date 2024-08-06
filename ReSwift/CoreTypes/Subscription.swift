@@ -52,23 +52,23 @@ class SubscriptionBox<State>: Hashable {
         // If we received a transformed subscription, we subscribe to that subscription
         // and forward all new values to the subscriber.
         if let transformedSubscription = transformedSubscription {
-            transformedSubscription.observer = { [unowned self] _, newState in
-                self.subscriber?._newState(state: newState as Any)
+            transformedSubscription.observer = { [unowned self] _, newState, action in
+                self.subscriber?._newState(newState as Any, for: action)
             }
         // If we haven't received a transformed subscription, we forward all values
         // from the original subscription.
         } else {
-            originalSubscription.observer = { [unowned self] _, newState in
-                self.subscriber?._newState(state: newState as Any)
+            originalSubscription.observer = { [unowned self] _, newState, action in
+                self.subscriber?._newState(newState as Any, for: action)
             }
         }
     }
 
-    func newValues(oldState: State, newState: State) {
+    func newValues(oldState: State, newState: State, action: Action?) {
         // We pass all new values through the original subscription, which accepts
         // values of type `<State>`. If present, transformed subscriptions will
         // receive this update and transform it before passing it on to the subscriber.
-        self.originalSubscription.newValues(oldState: oldState, newState: newState)
+        self.originalSubscription.newValues(oldState: oldState, newState: newState, action: action)
     }
 
     static func == (left: SubscriptionBox<State>, right: SubscriptionBox<State>) -> Bool {
@@ -87,8 +87,8 @@ public class Subscription<State> {
         ) -> Subscription<Substate>
     {
         return Subscription<Substate> { sink in
-            self.observer = { oldState, newState in
-                sink(oldState.map(selector) ?? nil, selector(newState))
+            self.observer = { oldState, newState, action in
+                sink(oldState.map(selector) ?? nil, selector(newState), action)
             }
         }
     }
@@ -97,11 +97,11 @@ public class Subscription<State> {
 
     /// Initializes a subscription with a sink closure. The closure provides a way to send
     /// new values over this subscription.
-    public init(sink: @escaping (@escaping (State?, State) -> Void) -> Void) {
+    public init(sink: @escaping (@escaping (State?, State, Action?) -> Void) -> Void) {
         // Provide the caller with a closure that will forward all values
         // to observers of this subscription.
-        sink { old, new in
-            self.newValues(oldState: old, newState: new)
+        sink { old, new, action in
+            self.newValues(oldState: old, newState: new, action: action)
         }
     }
 
@@ -131,16 +131,16 @@ public class Subscription<State> {
     public func skipRepeats(_ isRepeat: @escaping (_ oldState: State, _ newState: State) -> Bool)
         -> Subscription<State> {
         return Subscription<State> { sink in
-            self.observer = { oldState, newState in
+            self.observer = { oldState, newState, action in
                 switch (oldState, newState) {
                 case let (old?, new):
                     if !isRepeat(old, new) {
-                        sink(oldState, newState)
+                        sink(oldState, newState, action)
                     } else {
                         return
                     }
                 default:
-                    sink(oldState, newState)
+                    sink(oldState, newState, action)
                 }
             }
         }
@@ -148,15 +148,15 @@ public class Subscription<State> {
 
     /// The closure called with changes from the store.
     /// This closure can be written to for use in extensions to Subscription similar to `skipRepeats`
-    public var observer: ((State?, State) -> Void)?
+    public var observer: ((State?, State, Action?) -> Void)?
 
     // MARK: Internals
 
     init() {}
 
     /// Sends new values over this subscription. Observers will be notified of these new values.
-    func newValues(oldState: State?, newState: State) {
-        self.observer?(oldState, newState)
+    func newValues(oldState: State?, newState: State, action: Action?) {
+        self.observer?(oldState, newState, action)
     }
 }
 

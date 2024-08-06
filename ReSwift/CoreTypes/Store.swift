@@ -17,18 +17,20 @@ open class Store<State>: StoreType {
 
     typealias SubscriptionType = SubscriptionBox<State>
 
-    private(set) public var state: State! {
-        didSet {
-            subscriptions.forEach {
-                if $0.subscriber == nil {
-                    subscriptions.remove($0)
-                } else {
-                    $0.newValues(oldState: oldValue, newState: state)
-                }
+    private(set) public var state: State!
+
+    private func setState(_ state: State, for action: Action) {
+        let oldValue = state
+        self.state = state
+        subscriptions.forEach {
+            if $0.subscriber == nil {
+                subscriptions.remove($0)
+            } else {
+                $0.newValues(oldState: oldValue, newState: state, action: action)
             }
         }
     }
-
+    
     public lazy var dispatchFunction: DispatchFunction! = createDispatchFunction()
 
     private var reducer: Reducer<State>
@@ -106,7 +108,7 @@ open class Store<State>: StoreType {
         subscriptions.update(with: subscriptionBox)
 
         if let state = self.state {
-            originalSubscription.newValues(oldState: nil, newState: state)
+            originalSubscription.newValues(oldState: nil, newState: state, action: nil)
         }
     }
 
@@ -169,7 +171,7 @@ open class Store<State>: StoreType {
         let newState = reducer(action, state)
         isDispatching.value { $0 = false }
 
-        state = newState
+        setState(newState, for: action)
     }
 
     open func dispatch(_ action: Action) {

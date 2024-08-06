@@ -8,20 +8,20 @@
 
 public protocol AnyStoreSubscriber: AnyObject {
     // swiftlint:disable:next identifier_name
-    func _newState(state: Any)
+    func _newState(_ state: Any, for action: Action?)
 }
 
 public protocol StoreSubscriber: AnyStoreSubscriber {
     associatedtype StoreSubscriberStateType
 
-    func newState(state: StoreSubscriberStateType)
+    func newState(_ state: StoreSubscriberStateType, for action: Action?)
 }
 
 extension StoreSubscriber {
     // swiftlint:disable:next identifier_name
-    public func _newState(state: Any) {
+    public func _newState(_ state: Any, for action: Action?) {
         if let typedState = state as? StoreSubscriberStateType {
-            newState(state: typedState)
+            newState(typedState, for: action)
         }
     }
 }
